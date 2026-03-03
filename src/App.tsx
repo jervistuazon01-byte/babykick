@@ -25,6 +25,17 @@ const roundDownToInterval = (date: Date) => {
   return set(date, { minutes: roundedMinutes, seconds: 0, milliseconds: 0 });
 };
 
+const dayKeyFromDate = (date: Date) => format(date, 'yyyy-MM-dd');
+
+const getDayTotalForDate = (movementData: MovementData, date: Date) => {
+  const dayKey = dayKeyFromDate(date);
+  return Object.entries(movementData).reduce((sum, [key, entry]) => {
+    const isExactDayMatch = key === dayKey;
+    const isDateTimeMatch = key.startsWith(`${dayKey} `);
+    return (isExactDayMatch || isDateTimeMatch) ? sum + (entry.count || 0) : sum;
+  }, 0);
+};
+
 export default function App() {
   const [movements, setMovements] = useState<MovementData>({});
   const [view, setView] = useState<'day' | 'month'>('day');
@@ -116,10 +127,7 @@ export default function App() {
     }
   };
 
-  const todayStr = format(currentDate, 'yyyy-MM-dd');
-  const dayTotal = Object.entries(movements)
-    .filter(([key]) => key.startsWith(todayStr))
-    .reduce((sum, [_, entry]) => sum + (entry.count || 0), 0);
+  const dayTotal = getDayTotalForDate(movements, currentDate);
 
   return (
     <div className="h-[100dvh] sm:max-w-md sm:mx-auto bg-gradient-to-br from-rose-50 via-white to-rose-100 relative shadow-2xl overflow-hidden flex flex-col font-sans selection:bg-rose-200">
@@ -223,6 +231,7 @@ function DayView({
   updateNote: (k: string, note: string) => void
 }) {
   const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
+  const currentDayTotal = getDayTotalForDate(movements, currentDate);
 
   const intervals = Array.from({ length: INTERVALS_PER_DAY }).map((_, i) => {
     const hours = Math.floor((i * INTERVAL_MINUTES) / 60);
@@ -375,7 +384,7 @@ function DayView({
       })}
 
       {/* Empty State Illustration for 0 kick days */}
-      {Object.values(movements).filter(m => m.count > 0).length === 0 && (
+      {currentDayTotal === 0 && (
         <div className="flex flex-col items-center justify-center py-12 px-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="w-24 h-24 bg-rose-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
             <Baby className="w-12 h-12 text-rose-400 opacity-80" />
@@ -415,10 +424,7 @@ function MonthView({
       </div>
       <div className="grid grid-cols-7 gap-2">
         {days.map(day => {
-          const dayStr = format(day, 'yyyy-MM-dd');
-          const dayTotal = Object.entries(movements)
-            .filter(([key]) => key.startsWith(dayStr))
-            .reduce((sum, [_, entry]) => sum + entry.count, 0);
+          const dayTotal = getDayTotalForDate(movements, day);
 
           const isCurrentMonth = isSameMonth(day, currentDate);
           const isToday = isSameDay(day, new Date());
