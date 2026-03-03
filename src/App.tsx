@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   format, addDays, subDays, addMonths, subMonths, addMinutes,
   startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth,
@@ -7,16 +7,18 @@ import {
 import { Baby, Calendar as CalendarIcon, Clock, Plus, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import {
+  loadMovementDataFromStorage,
+  sanitizeMovementCount,
+  sanitizeMovementNote,
+  type MovementData,
+  STORAGE_KEY
+} from './utils/storage';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type MovementEntry = { count: number; note?: string };
-type MovementData = Record<string, MovementEntry>;
-
-const STORAGE_KEY = 'baby_movements_v2';
-const LEGACY_STORAGE_KEY = 'baby_movements_v1';
 const INTERVAL_MINUTES = 15;
 const INTERVALS_PER_DAY = Math.floor((24 * 60) / INTERVAL_MINUTES);
 
@@ -42,51 +44,46 @@ export default function App() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const skipNextPersistRef = useRef(true);
 
   useEffect(() => {
-    const legacySaved = localStorage.getItem(LEGACY_STORAGE_KEY);
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const { data, shouldPersist } = loadMovementDataFromStorage(localStorage);
+    setMovements(data);
 
-    if (saved) {
-      try {
-        setMovements(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to parse saved movements v2', e);
-      }
-    } else if (legacySaved) {
-      try {
-        const parsedLegacy = JSON.parse(legacySaved);
-        const migrated: MovementData = {};
-        for (const [key, val] of Object.entries(parsedLegacy)) {
-          if (typeof val === 'number') {
-            migrated[key] = { count: val };
-          }
-        }
-        setMovements(migrated);
-      } catch (e) {
-        console.error('Failed to migrate legacy movements', e);
-      }
+    if (shouldPersist) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
+
     setIsLoaded(true);
   }, []);
 
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(movements));
+    if (!isLoaded) {
+      return;
     }
+
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false;
+      return;
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(movements));
   }, [movements, isLoaded]);
 
   const updateMovement = (key: string, delta: number) => {
     setMovements(prev => {
       const currentEntry = prev[key] || { count: 0 };
-      const validCount = typeof currentEntry.count === 'number' && !isNaN(currentEntry.count) ? currentEntry.count : 0;
+      const validCount = sanitizeMovementCount(currentEntry.count) ?? 0;
+      const validNote = sanitizeMovementNote(currentEntry.note);
       const nextCount = validCount + delta;
 
       const updated = { ...prev };
-      if (nextCount <= 0 && !currentEntry.note) {
+      if (nextCount <= 0 && !validNote) {
         delete updated[key];
       } else {
-        updated[key] = { ...currentEntry, count: Math.max(0, nextCount) };
+        updated[key] = validNote
+          ? { count: Math.max(0, nextCount), note: validNote }
+          : { count: Math.max(0, nextCount) };
       }
       return updated;
     });
@@ -95,8 +92,8 @@ export default function App() {
   const updateNote = (key: string, note: string) => {
     setMovements(prev => {
       const currentEntry = prev[key] || { count: 0 };
-      const validCount = typeof currentEntry.count === 'number' && !isNaN(currentEntry.count) ? currentEntry.count : 0;
-      const trimmedNote = note.trim();
+      const validCount = sanitizeMovementCount(currentEntry.count) ?? 0;
+      const trimmedNote = sanitizeMovementNote(note);
 
       const updated = { ...prev };
       if (validCount <= 0 && !trimmedNote) {
