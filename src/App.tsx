@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  format, addDays, subDays, addMonths, subMonths,
+  format, addDays, subDays, addMonths, subMonths, addMinutes,
   startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth,
   isSameDay, parse, set, startOfWeek, endOfWeek
 } from 'date-fns';
@@ -17,6 +17,13 @@ type MovementData = Record<string, MovementEntry>;
 
 const STORAGE_KEY = 'baby_movements_v2';
 const LEGACY_STORAGE_KEY = 'baby_movements_v1';
+const INTERVAL_MINUTES = 15;
+const INTERVALS_PER_DAY = Math.floor((24 * 60) / INTERVAL_MINUTES);
+
+const roundDownToInterval = (date: Date) => {
+  const roundedMinutes = Math.floor(date.getMinutes() / INTERVAL_MINUTES) * INTERVAL_MINUTES;
+  return set(date, { minutes: roundedMinutes, seconds: 0, milliseconds: 0 });
+};
 
 export default function App() {
   const [movements, setMovements] = useState<MovementData>({});
@@ -98,9 +105,7 @@ export default function App() {
 
   const handleQuickAdd = () => {
     const now = new Date();
-    const minutes = now.getMinutes();
-    const roundedMinutes = minutes >= 30 ? 30 : 0;
-    const roundedDate = set(now, { minutes: roundedMinutes, seconds: 0, milliseconds: 0 });
+    const roundedDate = roundDownToInterval(now);
     const key = format(roundedDate, 'yyyy-MM-dd HH:mm');
     updateMovement(key, 1);
 
@@ -219,9 +224,9 @@ function DayView({
 }) {
   const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
 
-  const intervals = Array.from({ length: 48 }).map((_, i) => {
-    const hours = Math.floor(i / 2);
-    const minutes = (i % 2) * 30;
+  const intervals = Array.from({ length: INTERVALS_PER_DAY }).map((_, i) => {
+    const hours = Math.floor((i * INTERVAL_MINUTES) / 60);
+    const minutes = (i * INTERVAL_MINUTES) % 60;
     return set(currentDate, { hours, minutes, seconds: 0, milliseconds: 0 });
   });
 
@@ -231,9 +236,7 @@ function DayView({
   useEffect(() => {
     if (isToday) {
       const now = new Date();
-      const minutes = now.getMinutes();
-      const roundedMinutes = minutes >= 30 ? 30 : 0;
-      const roundedDate = set(now, { minutes: roundedMinutes, seconds: 0, milliseconds: 0 });
+      const roundedDate = roundDownToInterval(now);
       const currentKey = format(roundedDate, 'yyyy-MM-dd HH:mm');
 
       // Delay slightly to ensure render is complete
@@ -256,8 +259,8 @@ function DayView({
         // Highlight current time block
         const now = new Date();
         const isCurrentBlock = isToday &&
-          date.getHours() === now.getHours() &&
-          ((date.getMinutes() === 0 && now.getMinutes() < 30) || (date.getMinutes() === 30 && now.getMinutes() >= 30));
+          now.getTime() >= date.getTime() &&
+          now.getTime() < addMinutes(date, INTERVAL_MINUTES).getTime();
 
         const isEditing = editingNoteKey === key;
 
@@ -597,9 +600,7 @@ function CustomAddModal({
             onClick={() => {
               const d = new Date(`${date}T${time}`);
               if (!isNaN(d.getTime())) {
-                const minutes = d.getMinutes();
-                const roundedMinutes = minutes >= 30 ? 30 : 0;
-                const roundedDate = set(d, { minutes: roundedMinutes, seconds: 0, milliseconds: 0 });
+                const roundedDate = roundDownToInterval(d);
                 onAdd(format(roundedDate, 'yyyy-MM-dd HH:mm'), count);
                 onClose();
               }
