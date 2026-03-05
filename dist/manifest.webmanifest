@@ -1,0 +1,18 @@
+{
+  "name": "Baby Kicks Tracker",
+  "short_name": "Baby Kicks",
+  "description": "Track baby kick sessions and daily movement counts.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff5f9",
+  "theme_color": "#f8aac6",
+  "icons": [
+    {
+      "src": "./icons/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
