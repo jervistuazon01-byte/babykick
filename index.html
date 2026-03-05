@@ -4,12 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Baby Kicks Tracker 👶</title>
-    <meta http-equiv="refresh" content="0; url=./dist/index.html" />
-    <script>
-      window.location.replace('./dist/index.html');
-    </script>
+    <meta name="theme-color" content="#f8aac6" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="./icons/pwa-icon.svg" />
+    <link rel="apple-touch-icon" href="./icons/pwa-icon.svg" />
   </head>
   <body>
-    <p>Redirecting to Baby Kicks app… <a href="./dist/index.html">Open app</a></p>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
